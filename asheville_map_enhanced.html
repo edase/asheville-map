@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Hopkinsville → Asheville — Local-only Map (Updated)</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body,#map-root{height:100%}
+    body{font-family:Segoe UI, Roboto, Arial, sans-serif;background:#f0f2f8}
+    .app{max-width:1400px;margin:18px auto;height:calc(100vh - 36px);background:#fff;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,0.12);overflow:hidden;display:flex;flex-direction:column}
+    .top{padding:18px;background:linear-gradient(90deg,#2d3748,#1a202c);color:#fff}
+    .top h1{font-size:1.4rem;margin-bottom:6px}
+    .top p{opacity:.85;font-size:.95rem;margin-top:4px}
+    .main{flex:1;display:flex;min-height:0}
+    .sidebar{width:420px;background:#f7fafc;border-right:1px solid #e6eef8;overflow:auto;padding-bottom:20px}
+    .controls{padding:14px;background:#fff;position:sticky;top:0;z-index:20;border-bottom:1px solid #e6eef8}
+    .filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .btn{padding:8px 12px;border-radius:18px;border:2px solid #e2e8f0;background:#fff;cursor:pointer}
+    .btn.active{background:#2b6cb0;color:#fff;border-color:#2b6cb0}
+    .list{padding:14px}
+    .card{background:#fff;border-radius:10px;padding:12px;margin-bottom:12px;border-left:6px solid #e2e8f0;cursor:pointer;box-shadow:0 6px 12px rgba(0,0,0,0.04)}
+    .card .meta{font-size:.85rem;color:#6b7280;text-transform:capitalize}
+    .card h4{margin:6px 0;font-size:1rem}
+    .map-wrap{flex:1;position:relative}
+    #map{height:100%;width:100%}
+    .legend{position:absolute;right:18px;bottom:18px;background:#fff;padding:12px;border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,0.12);z-index:1000}
+    .legend div{display:flex;gap:8px;align-items:center;margin:6px 0}
+    .color{width:14px;height:14px;border-radius:3px;display:inline-block}
+    .popup-body{font-size:0.92rem}
+    .popup-body strong{display:block;margin-bottom:6px}
+    @media (max-width:1000px){.sidebar{width:100%;max-height:380px}.main{flex-direction:column}.map-wrap{height:500px}}
+    a { color: #1a73e8 }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <div class="top">
+      <h1>Hopkinsville → Asheville — Local-only Map</h1>
+      <p>Trip dates: Nov 28 – Dec 1 — Staying at 805 Case Cove Rd, Candler (Chandler area). Only local-owned places included.</p>
+    </div>
+
+    <div class="main">
+      <aside class="sidebar">
+        <div class="controls">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>Filters</strong>
+            <small style="opacity:.7">Cards = name + category · Click for full details</small>
+          </div>
+          <div class="filters" style="margin-top:10px">
+            <button class="btn active" data-filter="all">All</button>
+            <button class="btn" data-filter="breakfast">Breakfast</button>
+            <button class="btn" data-filter="lunch">Lunch</button>
+            <button class="btn" data-filter="dinner">Dinner</button>
+            <button class="btn" data-filter="brewery">Brewery</button>
+            <button class="btn" data-filter="coffee">Coffee/Dessert</button>
+            <button class="btn" data-filter="shop">Shop</button>
+            <button class="btn" data-filter="oddities">Oddities</button>
+            <button class="btn" data-filter="art">Art</button>
+            <button class="btn" data-filter="vintage">Vintage</button>
+            <button class="btn" data-filter="record">Record</button>
+            <button class="btn" data-filter="specialty-food">Specialty Food</button>
+            <button class="btn" data-filter="overlook">Overlook</button>
+            <button class="btn" data-filter="buc-ees">Buc-ee's</button>
+            <button class="btn" data-filter="rental">Rental</button>
+          </div>
+        </div>
+
+        <div class="list" id="list"></div>
+      </aside>
+
+      <div class="map-wrap">
+        <div id="map"></div>
+        <div class="legend" id="legend">
+          <div><span class="color" style="background:#f56565"></span><span>Food (breakfast/lunch/dinner)</span></div>
+          <div><span class="color" style="background:#4299e1"></span><span>Brewery</span></div>
+          <div><span class="color" style="background:#ed64a6"></span><span>Coffee / Dessert</span></div>
+          <div><span class="color" style="background:#ed8936"></span><span>Shop</span></div>
+          <div><span class="color" style="background:#d53f8c"></span><span>Oddities</span></div>
+          <div><span class="color" style="background:#38b2ac"></span><span>Art</span></div>
+          <div><span class="color" style="background:#dd6b20"></span><span>Vintage</span></div>
+          <div><span class="color" style="background:#805ad5"></span><span>Record</span></div>
+          <div><span class="color" style="background:#68d391"></span><span>Specialty Food</span></div>
+          <div><span class="color" style="background:#48bb78"></span><span>Overlook / Scenic</span></div>
+          <div><span class="color" style="background:#718096"></span><span>Buc-ee's / Route-stop</span></div>
+          <div><span class="color" style="background:#805ad5"></span><span>Rental</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <script>
+    // Combined POIs: original essentials + 20 offbeat local POIs
+    const locations = [
+      // Route stops - Buc-ee's
+      {"name":"Buc-ee's - Crossville, TN","category":"buc-ees","lat":35.9489566,"lng":-85.0269014,"address":"2045 Genesis Rd, Crossville, TN 38555","phone":"+1 979-238-6390","website":"https://buc-ees.com/locations/","hours":"Open 24 hrs (typical)","description":"Huge travel center off I-40 — perfect pit stop for fuel, snacks, restrooms and Beaver Nuggets.","why":"Reliable long-stop with clean restrooms, lots of parking and food options."},
+      {"name":"Buc-ee's - Sevierville (The 407), TN","category":"buc-ees","lat":35.86815,"lng":-83.56184,"address":"170 Buc-ee's Blvd, Sevierville, TN 37764","phone":"+1 979-238-6390","website":"https://buc-ees.com/locations/","hours":"Open 24 hrs (typical)","description":"The massive Sevierville Buc-ee's — the big road-trip attraction near the Smokies.","why":"Big parking area, lots of grab-and-go choices; good for stretching legs before the Smokies."},
+
+      // Rental
+      {"name":"805 Case Cove Rd (your rental)","category":"rental","lat":35.53648,"lng":-82.69293,"address":"805 Case Cove Rd, Candler / Chandler, NC 28715","phone":"","website":"","hours":"N/A","description":"Your stay location (Candler / Chandler area just west of Asheville).","why":"Base for exploring west Asheville, downtown, and the Blue Ridge foothills."},
+
+      // Scenic
+      {"name":"Max Patch (scenic bald)","category":"overlook","lat":35.797045,"lng":-82.956811,"address":"Max Patch Rd parking area (Madison County, NC)","phone":"","website":"https://www.fs.usda.gov/recarea/wnf/recarea/?recid=48128","hours":"Daylight access; seasonal parking restrictions","description":"Large grassy bald with 360° mountain views — outstanding sunrise/sunset shots.","why":"Iconic wide-open vistas that don’t require a long hike for great photos."},
+      {"name":"Lake Junaluska viewpoint","category":"overlook","lat":35.52788,"lng":-82.95958,"address":"Lake Junaluska, NC (pull-off viewing spots along the loop)","phone":"","website":"https://www.lakejunaluska.com/","hours":"Public access; check local listings","description":"Peaceful lake with mountain reflections — good for calm morning photos.","why":"Quick stop with photogenic lake + mountains backdrop, minimal detour from I-40."},
+
+      // Breweries & core spots
+      {"name":"Burial Beer Co. (South Slope)","category":"brewery","lat":35.588049,"lng":-82.553796,"address":"40 Collier Ave, Asheville, NC 28801","phone":"(828) 475-2739","website":"https://burialbeer.com/","hours":"Typically midday → late evening (check website)","description":"Locally-owned, art-forward brewery in South Slope with a large tap list.","why":"Core Asheville brewery — creative beers and atmosphere."},
+      {"name":"Wicked Weed Brewing (Brewpub)","category":"brewery","lat":35.5916923,"lng":-82.5510863,"address":"91 Biltmore Ave, Asheville, NC 28801","phone":"(828) 575-9599","website":"https://www.wickedweedbrewing.com/","hours":"Afternoon → evening (check site)","description":"Downtown brewpub from an Asheville original — solid beer selection and food.","why":"Good downtown stop for dinner + local taproom vibes."},
+
+      // Breakfast / Coffee / Dessert
+      {"name":"Early Girl Eatery (downtown)","category":"breakfast","lat":35.5948571,"lng":-82.5549502,"address":"8 Wall St, Asheville, NC 28801","phone":"(828) 259-9292","website":"https://earlygirleatery.com/","hours":"Morning → mid-afternoon (check site)","description":"Locally-owned farm-to-table restaurant famous for Southern breakfast & brunch.","why":"Reliable, locally-sourced breakfast that locals recommend."},
+      {"name":"Sunny Point Café (West Asheville)","category":"breakfast","lat":35.578585,"lng":-82.5888464,"address":"626 Haywood Rd, Asheville, NC 28806","phone":"(828) 252-0055","website":"https://sunnypointcafe.com/","hours":"Morning → mid-afternoon (check site)","description":"Family-run, farm-to-table cafe — heavy on made-from-scratch southern fare.","why":"One of West Asheville’s best spots for breakfast with garden-to-table ingredients."},
+      {"name":"Hole - Hot Doughnuts & Fresh Coffee","category":"coffee","lat":35.5807647,"lng":-82.5732981,"address":"168 Haywood Rd, Asheville, NC 28806","phone":"(828) 774-5667","website":"https://www.hole-doughnuts.com/","hours":"Morning — early afternoon (hours vary; they sell out)","description":"Handmade, small-batch doughnuts — great for quick sweet stop.","why":"Fresh, made-to-order doughnuts; grab-and-go photo-friendly treats."},
+      {"name":"Double D's Coffee Bus","category":"coffee","lat":35.593289,"lng":-82.551231,"address":"41 Biltmore Ave, Asheville, NC 28801 (Double-decker coffee bus)","phone":"(828) 505-2439","website":"https://www.doubledscoffee.com/","hours":"Morning → evening (seasonal)","description":"Iconic red double-decker bus turned coffee shop in downtown Asheville.","why":"Unique photo-op + coffee — very local vibe."},
+      {"name":"French Broad Chocolate Lounge","category":"coffee","lat":35.59512,"lng":-82.5527,"address":"10 S Lexington Ave, Asheville, NC 28801 (French Broad Chocolate)","phone":"(828) 575-4488","website":"https://www.frenchbroadchocolates.com/","hours":"Afternoon → evening; check site","description":"Local chocolate maker with desserts, drinks, and chill lounge space.","why":"Great dessert stop and locally-made chocolates."},
+
+      // Lunch / Dinner
+      {"name":"White Duck Taco Shop (River Arts / multiple)","category":"lunch","lat":35.5940821,"lng":-82.5723065,"address":"388 Riverside Dr / other locations, Asheville, NC","phone":"(828) 254-1398","website":"https://whiteducktacoshop.com/","hours":"Midday → evening","description":"Creative, locally-owned taco shop with rotating inventive fillings.","why":"Fast, flavorful local lunch option with non-chain energy."},
+      {"name":"12 Bones Smokehouse (South Asheville)","category":"dinner","lat":35.5465,"lng":-82.5794,"address":"5 Foundy St (South), Asheville, NC","phone":"(828) 575-3663","website":"https://www.12bones.com/","hours":"Lunch → evening (check site)","description":"Beloved, locally-owned BBQ joint — famous with locals and visitors alike.","why":"Classic regional BBQ with local roots — must-try for visitors."},
+      {"name":"Rhubarb (Chef John Fleer)","category":"dinner","lat":35.5947,"lng":-82.5532,"address":"7 SW Pack Square, Asheville, NC 28801 (near downtown)","phone":"(828) 348-4100","website":"https://rhubarb-restaurant.com/","hours":"Dinner service; check site for reservations","description":"Locally-driven seasonal cuisine with regional ingredients.","why":"Higher-end, locally-sourced dinner option for a special night out."},
+
+      // Additional shops (previously added)
+      {"name":"Regeneration Station (antiques / curios)","category":"shop","lat":35.5959,"lng":-82.5607,"address":"Large local antique/treasure warehouse (Asheville area)","phone":"","website":"","hours":"Varies by vendor","description":"Huge warehouse-style antiques & oddities — perfect for treasure hunting.","why":"Good spot to poke through weird, local finds — non-chain vintage."},
+      {"name":"Atomic Furnishings & Design (vintage / MCM)","category":"shop","lat":35.5930,"lng":-82.5528,"address":"Local design & vintage shop (Asheville)","phone":"","website":"","hours":"Varies","description":"Locally-owned mid-century modern and retro furniture & decor.","why":"Excellent place for oddball home finds and photography-friendly displays."},
+
+      // --- 20 offbeat POIs (new) ---
+      {"name":"The Raven & Crone","category":"oddities","lat":35.60085,"lng":-82.55492,"address":"640 Merrimon Ave, Asheville, NC 28804","phone":"(828) 258-2229","website":"https://ravenandcrone.com/","hours":"11am–6pm daily","description":"Metaphysical oddities, tarot, occult items, crystals, local witchcraft supplies.","why":"One of Asheville’s most unique shops — strange, mystical, very local."},
+      {"name":"The L.O.F.T. (Lost Objects Found Treasures)","category":"oddities","lat":35.59539,"lng":-82.55370,"address":"53 Broadway St, Asheville, NC 28801","phone":"(828) 254-5638","website":"","hours":"11am–7pm","description":"Weird curios, funky antiques, and strange collectibles.","why":"A true oddball shop — perfect for browsing strange local finds."},
+      {"name":"Enter the Earth","category":"oddities","lat":35.59512,"lng":-82.55303,"address":"1 Page Ave #125, Asheville, NC 28801","phone":"(828) 232-2220","website":"https://entertheearth.net/","hours":"10am–6pm","description":"Minerals, fossils, crystals, and earth oddities curated locally.","why":"One of Asheville’s best crystal and fossil stops — not tourist junk."},
+      {"name":"Curio","category":"oddities","lat":35.5951,"lng":-82.5568,"address":"67 N Lexington Ave, Asheville, NC 28801","phone":"","website":"https://www.curioavl.com/","hours":"Noon–6pm","description":"Dark art, vintage taxidermy, ritual items, and curiosity displays.","why":"If you want weird, this is the weird."},
+      {"name":"Zapow Gallery","category":"art","lat":35.59709,"lng":-82.55332,"address":"150 Coxe Ave, Asheville, NC 28801","phone":"(828) 575-2024","website":"https://www.zapow.com/","hours":"11am–7pm","description":"Indie pop-art gallery featuring local illustrators, painters, and makers.","why":"Great place for quirky, original local art."},
+      {"name":"North Carolina Glass Center","category":"art","lat":35.58797,"lng":-82.56679,"address":"140 Roberts St, Asheville, NC 28801","phone":"(828) 505-3552","website":"https://www.ncglasscenter.org/","hours":"10am–6pm","description":"Local glassblowing studio offering demonstrations and handmade pieces.","why":"Cool to watch glass artists work; great photo ops."},
+      {"name":"Riverview Station Art Studios","category":"art","lat":35.58845,"lng":-82.56580,"address":"191 Lyman St, Asheville, NC 28801","phone":"","website":"https://www.riverartsdistrict.com/visit/our-buildings/riverview-station/","hours":"Varies by artist","description":"Large collective of local artists in the River Arts District.","why":"Authentic local art scene — no big-box vibes."},
+      {"name":"Cotton Mill Studios","category":"art","lat":35.58831,"lng":-82.56752,"address":"122 Riverside Dr, Asheville, NC 28801","phone":"","website":"https://www.riverartsdistrict.com/listing/cotton-mill-studios/","hours":"Varies","description":"Small artist studios in a repurposed historic mill.","why":"Local makers, pottery, print art — very Asheville."},
+      {"name":"Vintage Moon","category":"vintage","lat":35.57884,"lng":-82.58795,"address":"600 Haywood Rd, Asheville, NC 28806","phone":"","website":"","hours":"Check local listings","description":"Retro boutique with vintage dresses, curated clothing, and accessories.","why":"Great for unique outfits and Asheville-flavored style."},
+      {"name":"Violet Owl Vintage","category":"vintage","lat":35.57532,"lng":-82.58930,"address":"611 Haywood Rd, Asheville, NC 28806","phone":"","website":"https://www.instagram.com/violetowlvintage/","hours":"Noon–6pm","description":"Retro clothing shop specializing in 60s–90s fashion.","why":"Local favorite for serious vintage lovers."},
+      {"name":"Garage 34","category":"vintage","lat":35.57690,"lng":-82.58761,"address":"629 Haywood Rd, Asheville, NC 28806","phone":"","website":"","hours":"Varies","description":"Vintage clothing + handmade goods by local creators.","why":"Authentic West Asheville vibe — no chain-store feel."},
+      {"name":"Wildlife West Boutique","category":"vintage","lat":35.57628,"lng":-82.58881,"address":"621 Haywood Rd, Asheville, NC 28806","phone":"","website":"","hours":"Check site","description":"Vintage western, denim, and unique secondhand pieces.","why":"A niche local favorite with a strong Americana vibe."},
+      {"name":"Voltage Records","category":"record","lat":35.59563,"lng":-82.55357,"address":"33 Patton Ave, Asheville, NC 28801","phone":"(828) 505-4459","website":"https://voltagerecordsasheville.com/","hours":"10am–7pm","description":"Vinyl-focused record store with new & used titles.","why":"Staple spot for record collectors in Asheville."},
+      {"name":"Static Age Records","category":"record","lat":35.59547,"lng":-82.55605,"address":"110 N Lexington Ave, Asheville, NC 28801","phone":"(828) 254-3232","website":"https://staticagerecords.com/","hours":"Noon–7pm","description":"Punk, indie, metal, and obscure vinyl + live performances.","why":"Deep-cut selection and strong alt-music energy."},
+      {"name":"Voltage Used Music Annex","category":"record","lat":35.59494,"lng":-82.55339,"address":"23 Patton Ave, Asheville, NC 28801","phone":"","website":"","hours":"Check local hours","description":"All used vinyl, affordable crates, and constant turnover.","why":"A digger’s paradise — locals love it."},
+      {"name":"Asheville Bee Charmer","category":"specialty-food","lat":35.59396,"lng":-82.55429,"address":"38 Battery Park Ave, Asheville, NC 28801","phone":"(828) 424-7274","website":"https://ashevillebeecharmer.com/","hours":"10am–6pm","description":"Locally made honey, infused blends, gifts — all regionally sourced.","why":"Big Asheville energy — artisanal honey & local goods."},
+      {"name":"No Taste Like Home Wild Food Shop","category":"specialty-food","lat":35.59389,"lng":-82.55513,"address":"Downtown Asheville pickup sites","phone":"","website":"https://notastelikehome.org/","hours":"Varies","description":"Wild foraged ingredients from Asheville’s forests.","why":"Ultra-local food experience — Asheville to the core."},
+      {"name":"The Chop Shop Butchery","category":"specialty-food","lat":35.58687,"lng":-82.56554,"address":"100 Charlotte St, Asheville, NC 28801","phone":"(828) 505-5933","website":"https://www.ashevillemeat.com/","hours":"10am–6pm","description":"Locally sourced meats, artisanal cuts, Appalachian products.","why":"Hyper-local butcher — great local food stop."},
+      {"name":"The Spice & Tea Exchange of Asheville","category":"specialty-food","lat":35.59543,"lng":-82.55367,"address":"6 Battery Park Ave, Asheville, NC 28801","phone":"","website":"https://www.spiceandtea.com/","hours":"10am–7pm","description":"Local spice blends, teas, and cooking gifts.","why":"Great flavor-focused specialty shop with Asheville blends."}
+    ];
+
+    // Map setup
+    const map = L.map('map').setView([35.5951,-82.5515], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'© OpenStreetMap contributors'}).addTo(map);
+
+    // colors
+    const colorByCategory = {
+      breakfast:"#f56565", lunch:"#f56565", dinner:"#f56565",
+      brewery:"#4299e1", coffee:"#ed64a6", shop:"#ed8936",
+      oddities:"#d53f8c", art:"#38b2ac", vintage:"#dd6b20",
+      record:"#805ad5", "specialty-food":"#68d391", overlook:"#48bb78",
+      "buc-ees":"#718096", rental:"#805ad5"
+    };
+
+    function makeIcon(color){
+      return L.divIcon({className:'custom-marker', html:`<div style="background:${color};width:28px;height:28px;border-radius:50%;border:3px solid white;box-shadow:0 3px 8px rgba(0,0,0,0.25)"></div>`, iconSize:[34,34], iconAnchor:[17,17]})
+    }
+
+    // add markers and sidebar cards
+    const markers = [];
+    const listEl = document.getElementById('list');
+
+    locations.forEach((loc, idx) => {
+      const color = colorByCategory[loc.category] || "#666";
+      const marker = L.marker([loc.lat, loc.lng], {icon: makeIcon(color)}).addTo(map);
+
+      const popupHtml = `
+        <div class="popup-body">
+          <strong>${loc.name}</strong>
+          <div style="margin-bottom:6px;"><em>${(loc.category||'').toUpperCase()}</em></div>
+          <div><strong>Address:</strong> ${loc.address || '—'}</div>
+          ${loc.phone?`<div><strong>Phone:</strong> ${loc.phone}</div>`:''}
+          ${loc.website?`<div><strong>Website:</strong> <a href="${loc.website}" target="_blank" rel="noopener">${loc.website}</a></div>`:''}
+          ${loc.hours?`<div><strong>Hours:</strong> ${loc.hours}</div>`:''}
+          ${loc.description?`<div style="margin-top:8px;">${loc.description}</div>`:''}
+          ${loc.why?`<div style="margin-top:6px;"><em>Why: ${loc.why}</em></div>`:''}
+        </div>
+      `;
+
+      marker.bindPopup(popupHtml, {maxWidth:360});
+
+      markers.push({marker, loc});
+
+      const card = document.createElement('div');
+      card.className = `card ${loc.category}`;
+      card.innerHTML = `<div class="meta">${loc.category}</div><h4>${loc.name}</h4>`;
+      card.onclick = () => { map.setView([loc.lat, loc.lng], 14); marker.openPopup(); };
+      listEl.appendChild(card);
+    });
+
+    // Filtering logic
+    function setFilter(filter){
+      document.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll(`.btn[data-filter="${filter}"]`)[0]?.classList.add('active');
+
+      markers.forEach(m => {
+        const matches = (filter === 'all') || (m.loc.category === filter);
+        if(matches) m.marker.addTo(map); else map.removeLayer(m.marker);
+      });
+
+      document.querySelectorAll('.card').forEach((card, i) => {
+        const loc = locations[i];
+        const show = (filter === 'all') || (loc.category === filter);
+        card.style.display = show ? 'block' : 'none';
+      });
+
+      // adjust bounds to visible markers
+      const visible = markers.filter(m => map.hasLayer(m.marker)).map(m=>m.marker);
+      if(visible.length) {
+        const group = new L.featureGroup(visible);
+        map.fitBounds(group.getBounds().pad(0.12));
+      }
+    }
+
+    document.querySelectorAll('.btn').forEach(btn => {
+      btn.addEventListener('click', ()=> setFilter(btn.dataset.filter));
+    });
+
+    // default
+    setFilter('all');
+
+    window.getPOIs = ()=> JSON.parse(JSON.stringify(locations));
+
+  </script>
+</body>
+</html>
